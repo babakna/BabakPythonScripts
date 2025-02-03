@@ -1,0 +1,23 @@
+GitHub Update
+
+From C:\Users\Babak\Desktop\Scripts\Babak Python
+
+a - Check the status - it will display the changes
+git status
+
+b- add the updates to staging with 'add .' or specific files git add path/to/your/file
+git add .
+
+c- Commit the changes with a meaningful update
+git commit -m "Update description of your changes"
+
+d- Finally push the chnages
+git push origin main
+
+
+Summary:
+cd C:\Users\Babak\Desktop\Scripts\Babak Python
+git status
+git add .
+git commit -m "Update description - includes any new ones"
+git push origin main
