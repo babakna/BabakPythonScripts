@@ -53,15 +53,11 @@ class PatternCheckerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("32-Digit EID Pattern Checker")
-        self.root.geometry("900x700")
+        self.root.geometry("800x600")
 
         # Create main frame
         main_frame = ttk.Frame(root, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-
-        # Configure style for ttk buttons
-        self.root.style = ttk.Style()
-        self.root.style.configure('Bold.TButton', font=('Arial', 12, 'bold'))
 
         # Create and configure input field
         self.input_var = tk.StringVar()
@@ -69,16 +65,16 @@ class PatternCheckerGUI:
 
         # Input label
         ttk.Label(main_frame, text="Enter 32-digit EID number:",
-             font=('Arial', 12)).grid(row=0, column=0, columnspan=4, sticky=tk.W, pady=(0, 5))
+                 font=('Arial', 12)).grid(row=0, column=0, columnspan=4, sticky=tk.W, pady=(0, 5))
 
         # Input field
         self.input_field = ttk.Entry(main_frame, textvariable=self.input_var, width=50,
-                               font=('Courier', 12))
+                                   font=('Courier', 12))
         self.input_field.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(0, 5))
 
         # Formatted display of input
         self.formatted_display = ttk.Label(main_frame, text="", font=('Courier', 10),
-                                     wraplength=700)
+                                         wraplength=700)
         self.formatted_display.grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(0, 20))
 
         # Button frame
@@ -87,28 +83,23 @@ class PatternCheckerGUI:
 
         # Buttons
         self.check_button = tk.Button(button_frame, text="Check Pattern",
-                                 command=self.check_pattern, bg="green", fg="white",
-                                 font=('Arial', 12, 'bold'), width=15)
+                                     command=self.check_pattern, bg="green", fg="white")
         self.check_button.grid(row=0, column=0, padx=5)
 
         self.clear_button = ttk.Button(button_frame, text="Clear Input",
-                                 command=self.clear_input,
-                                 style='Bold.TButton', width=15)
+                                     command=self.clear_input)
         self.clear_button.grid(row=0, column=1, padx=5)
 
         self.copy_button = ttk.Button(button_frame, text="Copy Results",
-                                command=self.copy_results,
-                                style='Bold.TButton', width=15)
+                                    command=self.copy_results)
         self.copy_button.grid(row=0, column=2, padx=5)
 
         self.display_patterns_button = ttk.Button(button_frame, text="Display Patterns",
-                                            command=self.show_patterns,
-                                            style='Bold.TButton', width=15)
+                                                command=self.show_patterns)
         self.display_patterns_button.grid(row=0, column=3, padx=5)
 
         self.exit_button = tk.Button(button_frame, text="Exit",
-                                command=self.root.destroy, bg="red", fg="white",
-                                font=('Arial', 12, 'bold'), width=15, justify='center')
+                                    command=self.root.destroy, bg="red", fg="white")
         self.exit_button.grid(row=0, column=4, padx=5)
 
         # Results display
@@ -117,13 +108,13 @@ class PatternCheckerGUI:
 
         # Results text
         self.result_text = tk.Text(self.result_frame, height=12, width=70,
-                             wrap=tk.WORD, font=('Arial', 11))
+                                 wrap=tk.WORD, font=('Arial', 11))
         self.result_text.grid(row=0, column=0, sticky=(tk.W, tk.E))
         self.result_text.config(state=tk.DISABLED)
 
         # Add scrollbar to results
         scrollbar = ttk.Scrollbar(self.result_frame, orient=tk.VERTICAL,
-                            command=self.result_text.yview)
+                                command=self.result_text.yview)
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.result_text.config(yscrollcommand=scrollbar.set)
 
