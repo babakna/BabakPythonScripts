@@ -9,7 +9,7 @@ import stat
 
 # To convert to executable
 # pip install pyinstaller
-# then run:   pyinstaller --onefile --windowed AutomateBackup.py
+# then run:   pyinstaller --onefile --windowed BabakBackup.py
 # When completed, the executable will be in the dist subfolder
 #
 # But first, need to update the source_paths and the USB drive.
@@ -23,7 +23,6 @@ default_source_paths = [
     "C:/Users/Babak/Desktop",
     "C:/Users/Babak/Documents",
     "C:/Users/Babak/Zotero"
-    # Add more paths as needed
 ]
 default_drive = "D:/"
 default_backup_name = "Babak"  # Default backup name
@@ -32,18 +31,21 @@ default_backup_name = "Babak"  # Default backup name
 source_paths = default_source_paths.copy()
 
 def check_usb_drive(destination):
+    """Check if the USB drive or network path is accessible."""
     if not os.path.exists(destination):
         log_message("USB drive or network path not found. Please connect the USB drive or ensure the network path is accessible and try again.")
         return False
     return True
 
 def log_message(message):
+    """Log messages to the GUI text display."""
     display_text.config(state=tk.NORMAL)
     display_text.insert(tk.END, message + '\n')
     display_text.config(state=tk.DISABLED)
     display_text.see(tk.END)
 
 def check_source_paths():
+    """Validate that all source paths exist."""
     for source_path in source_paths:
         if not os.path.exists(source_path):
             error_message = f"Source folder not found: {source_path}"
@@ -52,9 +54,10 @@ def check_source_paths():
     return True
 
 def copy_with_permissions(source, destination):
+    """Copy files and directories while preserving permissions."""
     try:
         shutil.copytree(source, destination)
-    except PermissionError as e:
+    except PermissionError:
         log_message(f"Permission denied: Skipping '{source}' due to access restrictions.")
     except Exception as e:
         log_message(f"Error copying '{source}': {str(e)}")
@@ -77,6 +80,7 @@ def force_delete(path):
         log_message(f"Error deleting '{path}': {str(e)}")
 
 def delete_old_backups(backup_root):
+    """Delete old backups to retain only the last 3."""
     try:
         all_backups = sorted(Path(backup_root).iterdir(), key=os.path.getctime, reverse=True)
         if len(all_backups) > 3:
@@ -88,6 +92,7 @@ def delete_old_backups(backup_root):
         log_message(f"Error deleting old backups: {str(e)}")
 
 def create_backup(destination):
+    """Create a backup of the selected source paths."""
     backup_root = os.path.join(destination, "Backups")
     
     try:
@@ -131,8 +136,7 @@ def create_backup(destination):
                 log_message(f"Copying {source_path} to {destination_path}")
                 copy_with_permissions(source_path, destination_path)
             else:
-                error_message = f"Source folder not found: {source_path}. Skipping..."
-                log_message(error_message)
+                log_message(f"Source folder not found: {source_path}. Skipping...")
         
         log_message("FINISHED")
         messagebox.showinfo("Backup Complete", f"Backup completed successfully!\n\nLocation: {new_backup_path}")
@@ -142,6 +146,7 @@ def create_backup(destination):
         messagebox.showerror("Backup Error", error_message)
 
 def on_start():
+    """Start the backup process."""
     try:
         destination = destination_var.get()
         if not check_usb_drive(destination):
@@ -163,6 +168,7 @@ def on_start():
         messagebox.showerror("Backup Error", error_message)
 
 def on_exit():
+    """Handle application exit."""
     if 'backup_thread' in globals() and backup_thread.is_alive():
         result = messagebox.askyesno("Backup in Progress", "A backup is currently in progress. Are you sure you want to exit?")
         if not result:
@@ -170,11 +176,13 @@ def on_exit():
     root.destroy()
 
 def browse_destination():
+    """Open a dialog to select the backup destination."""
     folder_selected = filedialog.askdirectory(initialdir=default_drive)
     if folder_selected:
         destination_var.set(folder_selected)
 
 def replace_sources():
+    """Replace the current source paths with new selections."""
     global source_paths
     selected_folders = []
     while True:
@@ -187,6 +195,7 @@ def replace_sources():
         log_message("Source folders replaced.")
 
 def add_to_sources():
+    """Add additional source paths to the current list."""
     global source_paths
     selected_folders = []
     while True:
@@ -200,11 +209,13 @@ def add_to_sources():
         log_message("Source folders added.")
 
 def reset_to_default():
+    """Reset source paths to the default configuration."""
     global source_paths
     source_paths = default_source_paths.copy()
     log_message("Source folders reset to default.")
 
 def display_settings():
+    """Display the current settings in the log."""
     settings = (
         f"Source Folders:\n" + "\n".join(source_paths) +
         f"\n\nDestination:\n{destination_var.get()}" +
@@ -213,6 +224,7 @@ def display_settings():
     log_message(settings)
 
 def clear_display():
+    """Clear the log display."""
     display_text.config(state=tk.NORMAL)
     display_text.delete(1.0, tk.END)
     display_text.config(state=tk.DISABLED)
