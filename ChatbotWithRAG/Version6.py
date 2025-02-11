@@ -18,7 +18,7 @@ from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.chains.llm import Runnable
 
-#This one actually works
+#This one actually works - Perplixity improvement
 
 @dataclass
 class ChatMessage:
@@ -31,7 +31,7 @@ class ChatMessage:
             self.timestamp = datetime.now()
 
 class OllamaChatbot:
-    def __init__(self, 
+    def __init__(self,
                  model: str = "llama2:latest",
                  base_url: str = "http://localhost:11434",
                  max_retries: int = 3,
@@ -63,8 +63,8 @@ class OllamaChatbot:
         except Exception as e:
             raise Exception(f"Failed to verify Ollama setup: {str(e)}")
 
-    def query_ollama(self, 
-                    prompt: str, 
+    def query_ollama(self,
+                    prompt: str,
                     stream: bool = False,
                     context: List[int] = None) -> Optional[Dict]:
         url = f"{self.base_url}/api/generate"
@@ -102,9 +102,9 @@ class OllamaChatbot:
     def get_similar_questions(self, user_input: str) -> List[str]:
         prompt = f"""Given the following question, generate 3 similar but different questions that are related to the same topic.
         Make the questions diverse but relevant.
-        
+
         Original question: {user_input}
-        
+
         Please provide only the questions, one per line."""
         response = self.query_ollama(prompt)
         if response:
@@ -112,8 +112,8 @@ class OllamaChatbot:
             return similar_questions
         return []
 
-    def get_comprehensive_response(self, 
-                                 original_question: str, 
+    def get_comprehensive_response(self,
+                                 original_question: str,
                                  similar_questions: List[str],
                                  stream: bool = True) -> Optional[Dict]:
         context_prompt = f"""Consider the following main question and related questions:
@@ -121,7 +121,9 @@ class OllamaChatbot:
         Main question: {original_question}
 
         Related questions:
-        {chr(10).join('- ' + q for q in similar_questions)}... Please provide a comprehensive response that:
+        {chr(10).join('- ' + q for q in similar_questions)}
+
+        Please provide a comprehensive response that:
         1. Directly answers the main question
         2. Incorporates relevant insights from the related questions
         3. Maintains a coherent and well-structured flow
@@ -146,7 +148,7 @@ class OllamaChatbot:
                 print(f"Unsupported file type: {file_path}")
                 continue
             documents.extend(loader.load())
-        
+
         # Split documents into chunks
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         texts = text_splitter.split_documents(documents)
@@ -164,7 +166,7 @@ class OllamaChatbot:
             def __init__(self, chatbot, prompt):
                 self.chatbot = chatbot
                 self.prompt = prompt
-            
+
             def run(self):
                 response = self.chatbot.query_ollama(self.prompt)
                 return response["response"]
@@ -286,6 +288,7 @@ class ChatbotGUI:
         for i, file_path in enumerate(self.file_paths, 1):
             self.status_text.insert(tk.END, f"{i}. {os.path.basename(file_path)}\n")
         self.status_text.see(tk.END)
+
     def process_query(self):
         if self.is_processing:
             self.status_text.insert(tk.END, "Please wait for the current query to finish processing.\n")
@@ -341,84 +344,51 @@ class ChatbotGUI:
                 self.chatbot.add_to_history("user", query)
                 self.chatbot.add_to_history("assistant", response)
             else:
-                self.status_text.insert(tk.END, "No response generated. Please try again.\n")
+                self.status_text.insert(tk.END, "No response received from the chatbot.\n")
         except Exception as e:
-            self.status_text.insert(tk.END, f"Error: {str(e)}\n")
+            self.status_text.insert(tk.END, f"An error occurred: {str(e)}\n")
         finally:
             self.is_processing = False
             self.status_text.insert(tk.END, "Processing complete.\n")
             self.status_text.see(tk.END)
-            self.master.update_idletasks()
-
-    def stop_rendering_response(self):
-        """Stop rendering the response in the Response text widget."""
-        self.stop_rendering = True
-        self.status_text.insert(tk.END, "Response rendering stopped by user.\n")
-        self.status_text.see(tk.END)
 
     def clear_output(self):
-        self.query_entry.delete("1.0", tk.END)
-        self.followup_entry.delete("1.0", tk.END)
-        self.status_text.delete("1.0", tk.END)
         self.response_text.delete("1.0", tk.END)
-        self.file_paths = []  # Clear uploaded files
-        self.chatbot.context = None  # Reset context
-        self.chatbot.conversation_history.clear()  # Clear conversation history
-        self.chatbot.vector_db = None  # Reset vector database
+        self.status_text.delete("1.0", tk.END)
 
     def save_output(self):
-        with open("chatbot_output.txt", "w") as f:
-            f.write("Query:\n")
-            f.write(self.query_entry.get("1.0", tk.END).strip() + "\n\n")
-            f.write("Follow-up Query:\n")
-            f.write(self.followup_entry.get("1.0", tk.END).strip() + "\n\n")
-            f.write("Status:\n")
-            f.write(self.status_text.get("1.0", tk.END).strip() + "\n")
-            f.write("Response:\n")
-            f.write(self.response_text.get("1.0", tk.END).strip())
-        self.status_text.insert(tk.END, "Output saved to chatbot_output.txt\n")
+        output = self.response_text.get("1.0", tk.END)
+        file_path = filedialog.asksaveasfilename(defaultextension=".txt")
+        if file_path:
+            with open(file_path, "w") as file:
+                file.write(output)
+            self.status_text.insert(tk.END, f"Output saved to {file_path}\n")
+            self.status_text.see(tk.END)
+
+    def stop_rendering_response(self):
+        self.stop_rendering = True
+        self.status_text.insert(tk.END, "Stopping response rendering...\n")
+        self.status_text.see(tk.END)
 
     def test_connection(self):
         try:
-            self.chatbot.verify_setup()
-            self.status_text.insert(tk.END, "Connection test successful. Ollama is running and accessible.\n")
-            self.status_text.insert(tk.END, f"Available models: {', '.join(self.chatbot.available_models)}\n")
-            self.status_text.insert(tk.END, f"Current model: {self.chatbot.model}\n")
-            self.status_text.insert(tk.END, f"Ollama server URL: {self.chatbot.base_url}\n")
-        except Exception as e:
-            self.status_text.insert(tk.END, f"Connection test failed: {str(e)}\n")
+            response = requests.get(f"{self.chatbot.base_url}/api/tags")
+            if response.status_code == 200:
+                self.status_text.insert(tk.END, "Connection to Ollama server successful.\n")
+            else:
+                self.status_text.insert(tk.END, f"Connection failed. Status code: {response.status_code}\n")
+        except requests.exceptions.RequestException as e:
+            self.status_text.insert(tk.END, f"Connection error: {str(e)}\n")
         self.status_text.see(tk.END)
 
     def exit_application(self):
         if self.ollama_process:
             self.ollama_process.terminate()
-            self.ollama_process.wait()
         self.master.quit()
 
-def is_port_in_use(port: int) -> bool:
-    """Check if a port is already in use."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
-
-def start_ollama_serve():
-    try:
-        if is_port_in_use(11434):
-            print("Ollama server is already running.")
-            return None
-        process = subprocess.Popen(["ollama", "serve"])
-        time.sleep(5)  # Give Ollama some time to start
-        return process
-    except Exception as e:
-        print(f"Error starting Ollama: {e}")
-        return None
-
 def main():
-    ollama_process = start_ollama_serve()
-    if ollama_process is None:
-        print("Failed to start Ollama server. Please ensure Ollama is installed and running.")
     root = tk.Tk()
-    gui = ChatbotGUI(root)
-    gui.ollama_process = ollama_process
+    ChatbotGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":

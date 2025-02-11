@@ -13,12 +13,11 @@ import socket
 import os
 from langchain.document_loaders import PyPDFLoader, Docx2txtLoader, UnstructuredExcelLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.chains.llm import Runnable
 
-#This one actually works
 
 @dataclass
 class ChatMessage:
@@ -30,8 +29,9 @@ class ChatMessage:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
+
 class OllamaChatbot:
-    def __init__(self, 
+    def __init__(self,
                  model: str = "llama2:latest",
                  base_url: str = "http://localhost:11434",
                  max_retries: int = 3,
@@ -55,7 +55,8 @@ class OllamaChatbot:
             if response.status_code != 200:
                 raise Exception(f"Server returned status code: {response.status_code}")
             models_data = response.json().get("models", [])
-            self.available_models = sorted([model["name"] for model in models_data], reverse=True)  # Sort models in descending order
+            self.available_models = sorted([model["name"] for model in models_data],
+                                            reverse=True)  # Sort models in descending order
             if self.model not in self.available_models:
                 print(f"Warning: Model {self.model} not found in available models.")
                 print("Attempting to use default model llama2:latest")
@@ -63,10 +64,10 @@ class OllamaChatbot:
         except Exception as e:
             raise Exception(f"Failed to verify Ollama setup: {str(e)}")
 
-    def query_ollama(self, 
-                    prompt: str, 
-                    stream: bool = False,
-                    context: List[int] = None) -> Optional[Dict]:
+    def query_ollama(self,
+                     prompt: str,
+                     stream: bool = False,
+                     context: List[int] = None) -> Optional[Dict]:
         url = f"{self.base_url}/api/generate"
         data = {
             "model": self.model,
@@ -112,16 +113,18 @@ class OllamaChatbot:
             return similar_questions
         return []
 
-    def get_comprehensive_response(self, 
-                                 original_question: str, 
-                                 similar_questions: List[str],
-                                 stream: bool = True) -> Optional[Dict]:
+    def get_comprehensive_response(self,
+                                    original_question: str,
+                                    similar_questions: List[str],
+                                    stream: bool = True) -> Optional[Dict]:
         context_prompt = f"""Consider the following main question and related questions:
 
         Main question: {original_question}
 
         Related questions:
-        {chr(10).join('- ' + q for q in similar_questions)}... Please provide a comprehensive response that:
+        {chr(10).join('- ' + q for q in similar_questions)}
+
+        Please provide a comprehensive response that:
         1. Directly answers the main question
         2. Incorporates relevant insights from the related questions
         3. Maintains a coherent and well-structured flow
@@ -132,6 +135,7 @@ class OllamaChatbot:
         self.conversation_history.append(ChatMessage(role=role, content=content))
         if len(self.conversation_history) > self.max_history:
             self.conversation_history = self.conversation_history[-self.max_history:]
+
     def load_files(self, file_paths: List[str]):
         """Load and process files into a vector database."""
         documents = []
@@ -146,11 +150,10 @@ class OllamaChatbot:
                 print(f"Unsupported file type: {file_path}")
                 continue
             documents.extend(loader.load())
-        
+
         # Split documents into chunks
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         texts = text_splitter.split_documents(documents)
-
         # Create embeddings and vector database
         embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         self.vector_db = Chroma.from_documents(texts, embeddings)
@@ -160,11 +163,20 @@ class OllamaChatbot:
         if not self.vector_db:
             return None
 
+        docs = self.vector_db.as_retriever().get_relevant_documents(query)
+
+        if not docs:
+            return "No relevant documents found for your query."
+
+        context = "\n".join([doc.page_content for doc in docs])
+
+        prompt = f"""Please summarize the following document:\n\n{context}\n\nSummary:"""
+
         class OllamaRunnable(Runnable):
             def __init__(self, chatbot, prompt):
                 self.chatbot = chatbot
                 self.prompt = prompt
-            
+
             def run(self):
                 response = self.chatbot.query_ollama(self.prompt)
                 return response["response"]
@@ -173,22 +185,24 @@ class OllamaChatbot:
                 return self.run()
 
         qa_chain = RetrievalQA.from_chain_type(
-            llm=OllamaRunnable(self, query),  # Use Ollama as the LLM wrapped in a Runnable
+            llm=OllamaRunnable(self, prompt),
             chain_type="stuff",
             retriever=self.vector_db.as_retriever()
         )
         result = qa_chain.run(query)
         return result
+
+
 class ChatbotGUI:
     def __init__(self, master):
         self.master = master
         master.title("Enhanced Ollama Chatbot with RAG")
-        master.geometry("1000x1000")  # Adjust size for better visibility of all elements
+        master.geometry("1000x1000")
 
         self.chatbot = OllamaChatbot()
         self.ollama_process = None
         self.is_processing = False
-        self.stop_rendering = False  # Flag to stop rendering
+        self.stop_rendering = False
         self.file_paths = []  # List to store uploaded file paths
 
         self.create_widgets()
@@ -212,17 +226,18 @@ class ChatbotGUI:
         self.file_label = tk.Label(self.frame, text="Upload Files (PDF, Word, Excel):", font=custom_font)
         self.file_label.grid(row=1, column=0, sticky=tk.W, pady=5)
 
-        self.file_button = tk.Button(self.frame, text="Upload Files", command=self.upload_files, bg="light blue", font=custom_font)
+        self.file_button = tk.Button(self.frame, text="Upload Files", command=self.upload_files, bg="light blue",
+                                     font=custom_font)
         self.file_button.grid(row=1, column=1, sticky=tk.W, pady=5)
 
         # Query input
         self.query_label = tk.Label(self.frame, text="Enter your query:", font=custom_font)
         self.query_label.grid(row=2, column=0, sticky=tk.W, pady=5)
-
         self.query_entry = tk.Text(self.frame, height=3, width=90, wrap=tk.WORD, font=custom_font)
         self.query_entry.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
 
-        self.submit_button = tk.Button(self.frame, text="Submit", command=self.process_query, bg="light blue", font=custom_font)
+        self.submit_button = tk.Button(self.frame, text="Submit", command=self.process_query, bg="light blue",
+                                       font=custom_font)
         self.submit_button.grid(row=3, column=2, sticky=tk.E, pady=5)
 
         # Follow-up input
@@ -237,6 +252,8 @@ class ChatbotGUI:
 
         self.status_text = scrolledtext.ScrolledText(self.frame, height=10, width=90, wrap=tk.WORD, font=custom_font)
         self.status_text.grid(row=7, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        self.status_text.tag_configure("left_margin", lmargin1=15)
+        self.status_text.tag_add("left_margin", "1.0", "end")
 
         self.response_label = tk.Label(self.frame, text="Response:", font=custom_font)
         self.response_label.grid(row=8, column=0, sticky=tk.W, pady=5)
@@ -248,22 +265,28 @@ class ChatbotGUI:
         self.button_frame = tk.Frame(self.frame)
         self.button_frame.grid(row=10, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=10)
 
-        self.clear_button = tk.Button(self.button_frame, text="Clear", command=self.clear_output, bg="white", font=custom_font)
+        self.clear_button = tk.Button(self.button_frame, text="Clear", command=self.clear_output, bg="white",
+                                      font=custom_font)
         self.clear_button.grid(row=0, column=0, padx=5)
 
-        self.save_button = tk.Button(self.button_frame, text="Save", command=self.save_output, bg="green", font=custom_font)
+        self.save_button = tk.Button(self.button_frame, text="Save", command=self.save_output, bg="green",
+                                     font=custom_font)
         self.save_button.grid(row=0, column=1, padx=5)
 
-        self.stop_button = tk.Button(self.button_frame, text="Stop", command=self.stop_rendering_response, bg="orange", font=custom_font)
+        self.stop_button = tk.Button(self.button_frame, text="Stop", command=self.stop_rendering_response, bg="orange",
+                                     font=custom_font)
         self.stop_button.grid(row=0, column=2, padx=5)
 
-        self.test_button = tk.Button(self.button_frame, text="Test", command=self.test_connection, bg="light blue", font=custom_font)
+        self.test_button = tk.Button(self.button_frame, text="Test", command=self.test_connection, bg="light blue",
+                                     font=custom_font)
         self.test_button.grid(row=0, column=3, padx=5)
 
-        self.display_button = tk.Button(self.button_frame, text="Display Entries", command=self.display_entries, bg="yellow", font=custom_font)
+        self.display_button = tk.Button(self.button_frame, text="Display Entries", command=self.display_entries,
+                                        bg="yellow", font=custom_font)
         self.display_button.grid(row=0, column=4, padx=5)
 
-        self.exit_button = tk.Button(self.button_frame, text="Exit", command=self.exit_application, bg="red", font=custom_font)
+        self.exit_button = tk.Button(self.button_frame, text="Exit", command=self.exit_application, bg="red",
+                                     font=custom_font)
         self.exit_button.grid(row=0, column=5, padx=5)
 
     def upload_files(self):
@@ -273,7 +296,8 @@ class ChatbotGUI:
             filetypes=[("PDF Files", "*.pdf"), ("Word Files", "*.docx"), ("Excel Files", "*.xlsx")]
         )
         if file_paths:
-            self.file_paths.extend(file_paths)  # Append to the list instead of overwriting it
+            # Append the newly selected files to the existing list of file paths
+            self.file_paths.extend(file_paths)
             self.status_text.insert(tk.END, f"Uploaded {len(file_paths)} files.\n")
             self.status_text.see(tk.END)
 
@@ -286,6 +310,7 @@ class ChatbotGUI:
         for i, file_path in enumerate(self.file_paths, 1):
             self.status_text.insert(tk.END, f"{i}. {os.path.basename(file_path)}\n")
         self.status_text.see(tk.END)
+
     def process_query(self):
         if self.is_processing:
             self.status_text.insert(tk.END, "Please wait for the current query to finish processing.\n")
@@ -317,8 +342,8 @@ class ChatbotGUI:
     def _process_query_thread(self, query):
         try:
             if self.file_paths:
-                # Load files into the vector database if not already loaded
-                if not self.chatbot.vector_db:
+                # Load files into the vector database if not already loaded or if new files are added
+                if not self.chatbot.vector_db or self.file_paths:
                     self.status_text.insert(tk.END, "Loading files into vector database...\n")
                     self.status_text.see(tk.END)
                     self.chatbot.load_files(self.file_paths)
@@ -335,91 +360,55 @@ class ChatbotGUI:
                 self.response_text.delete("1.0", tk.END)
                 self.response_text.insert(tk.END, response)
                 self.response_text.see(tk.END)
-                self.master.update_idletasks()
-
-                # Add to conversation history
-                self.chatbot.add_to_history("user", query)
-                self.chatbot.add_to_history("assistant", response)
-            else:
-                self.status_text.insert(tk.END, "No response generated. Please try again.\n")
         except Exception as e:
-            self.status_text.insert(tk.END, f"Error: {str(e)}\n")
+            self.status_text.insert(tk.END, f"Error processing query: {e}\n")
+            self.status_text.see(tk.END)
         finally:
             self.is_processing = False
-            self.status_text.insert(tk.END, "Processing complete.\n")
-            self.status_text.see(tk.END)
-            self.master.update_idletasks()
-
-    def stop_rendering_response(self):
-        """Stop rendering the response in the Response text widget."""
-        self.stop_rendering = True
-        self.status_text.insert(tk.END, "Response rendering stopped by user.\n")
-        self.status_text.see(tk.END)
 
     def clear_output(self):
-        self.query_entry.delete("1.0", tk.END)
-        self.followup_entry.delete("1.0", tk.END)
-        self.status_text.delete("1.0", tk.END)
         self.response_text.delete("1.0", tk.END)
-        self.file_paths = []  # Clear uploaded files
-        self.chatbot.context = None  # Reset context
-        self.chatbot.conversation_history.clear()  # Clear conversation history
-        self.chatbot.vector_db = None  # Reset vector database
+        self.status_text.delete("1.0", tk.END)
 
     def save_output(self):
-        with open("chatbot_output.txt", "w") as f:
-            f.write("Query:\n")
-            f.write(self.query_entry.get("1.0", tk.END).strip() + "\n\n")
-            f.write("Follow-up Query:\n")
-            f.write(self.followup_entry.get("1.0", tk.END).strip() + "\n\n")
-            f.write("Status:\n")
-            f.write(self.status_text.get("1.0", tk.END).strip() + "\n")
-            f.write("Response:\n")
-            f.write(self.response_text.get("1.0", tk.END).strip())
-        self.status_text.insert(tk.END, "Output saved to chatbot_output.txt\n")
+        filepath = filedialog.asksaveasfilename(defaultextension=".txt",
+                                                filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+        if filepath:
+            with open(filepath, "w") as f:
+                f.write("Status:\n")
+                f.write(self.status_text.get("1.0", tk.END))
+                f.write("\nResponse:\n")
+                f.write(self.response_text.get("1.0", tk.END))
+
+    def stop_rendering_response(self):
+        self.stop_rendering = True
 
     def test_connection(self):
         try:
-            self.chatbot.verify_setup()
-            self.status_text.insert(tk.END, "Connection test successful. Ollama is running and accessible.\n")
-            self.status_text.insert(tk.END, f"Available models: {', '.join(self.chatbot.available_models)}\n")
-            self.status_text.insert(tk.END, f"Current model: {self.chatbot.model}\n")
-            self.status_text.insert(tk.END, f"Ollama server URL: {self.chatbot.base_url}\n")
-        except Exception as e:
-            self.status_text.insert(tk.END, f"Connection test failed: {str(e)}\n")
+            # Test internet connectivity
+            socket.create_connection(("www.google.com", 80))
+            self.status_text.insert(tk.END, "Internet connection is working.\n")
+        except OSError:
+            self.status_text.insert(tk.END, "No internet connection.\n")
+
+        try:
+            # Test connection to Ollama server
+            response = requests.get(f"{self.chatbot.base_url}/api/tags")
+            if response.status_code == 200:
+                self.status_text.insert(tk.END, "Connection to Ollama server is successful.\n")
+            else:
+                self.status_text.insert(tk.END,
+                                        f"Failed to connect to Ollama server. Status code: {response.status_code}\n")
+        except requests.exceptions.RequestException as e:
+            self.status_text.insert(tk.END, f"Failed to connect to Ollama server: {e}\n")
+
         self.status_text.see(tk.END)
 
     def exit_application(self):
-        if self.ollama_process:
-            self.ollama_process.terminate()
-            self.ollama_process.wait()
-        self.master.quit()
+        self.master.destroy()
 
-def is_port_in_use(port: int) -> bool:
-    """Check if a port is already in use."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('localhost', port)) == 0
-
-def start_ollama_serve():
-    try:
-        if is_port_in_use(11434):
-            print("Ollama server is already running.")
-            return None
-        process = subprocess.Popen(["ollama", "serve"])
-        time.sleep(5)  # Give Ollama some time to start
-        return process
-    except Exception as e:
-        print(f"Error starting Ollama: {e}")
-        return None
-
-def main():
-    ollama_process = start_ollama_serve()
-    if ollama_process is None:
-        print("Failed to start Ollama server. Please ensure Ollama is installed and running.")
-    root = tk.Tk()
-    gui = ChatbotGUI(root)
-    gui.ollama_process = ollama_process
-    root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    gui = ChatbotGUI(root)
+    root.mainloop()
