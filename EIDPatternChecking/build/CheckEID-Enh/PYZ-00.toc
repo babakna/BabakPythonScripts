@@ -401,8 +401,7 @@
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.752.0_x64__qbz5n2kfra8p0\\Lib\\py_compile.py',
    'PYMODULE'),
   ('pyperclip',
-   'c:\\Users\\Babak\\Desktop\\Scripts\\Babak '
-   'Python\\EIDPatternChecking\\.venv\\Lib\\site-packages\\pyperclip\\__init__.py',
+   'C:\\Users\\Babak\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\site-packages\\pyperclip\\__init__.py',
    'PYMODULE'),
   ('quopri',
    'C:\\Program '
