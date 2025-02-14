@@ -7,28 +7,16 @@ from pathlib import Path
 import threading
 import stat
 
-# To convert to executable
-# pip install pyinstaller
-# then run:   pyinstaller --onefile --windowed DinaBackup.py
-# When completed, the executable will be in the dist subfolder
-#
-# But first, need to update the source_paths and the USB drive.
-#
-# Configuration
-# Need to update the exact paths
-
 default_source_paths = [
-    
-    "C:/Users/dinab/Desktop",
-    "C:/Users/dunab/Documents",
-    "C:/Users/dunab/Downloads"
+    "C:/BKUP",
+    "C:/Download",
+    "C:/Users/Babak/Desktop",
+    "C:/Users/Babak/Documents",
+    "C:/Users/Babak/Zotero"
 ]
 default_drive = "D:/"
-default_backup_name = "Dina"  # Default backup name
+default_backup_name = "Babak"
 source_paths = default_source_paths.copy()
-last_was_star = False
-DEFAULT_RETENTION = 3
-RETENTION_OPTIONS = list(range(2, 11))
 
 def check_usb_drive(destination):
     if not os.path.exists(destination):
@@ -38,11 +26,7 @@ def check_usb_drive(destination):
 
 def log_message(message):
     def update_log():
-        global last_was_star
         display_text.config(state=tk.NORMAL)
-        if last_was_star:
-            display_text.insert(tk.END, '\n')
-            last_was_star = False
         display_text.insert(tk.END, message + '\n')
         display_text.config(state=tk.DISABLED)
         display_text.see(tk.END)
@@ -50,10 +34,8 @@ def log_message(message):
 
 def append_star():
     def update_star():
-        global last_was_star
         display_text.config(state=tk.NORMAL)
-        display_text.insert(tk.END, "*")
-        last_was_star = True
+        display_text.insert(tk.END, "* ")
         display_text.config(state=tk.DISABLED)
         display_text.see(tk.END)
     root.after(0, update_star)
@@ -90,10 +72,9 @@ def force_delete(path):
 
 def delete_old_backups(backup_root):
     try:
-        retention_number = retention_var.get()
         all_backups = sorted(Path(backup_root).iterdir(), key=os.path.getctime, reverse=True)
-        if len(all_backups) > retention_number:
-            old_backups = all_backups[retention_number:]
+        if len(all_backups) > 3:
+            old_backups = all_backups[3:]
             for old_backup in old_backups:
                 log_message(f"Deleting old backup: {old_backup}")
                 force_delete(old_backup)
@@ -108,11 +89,11 @@ def create_backup(destination):
     def add_star():
         if backup_thread.is_alive():
             append_star()
-            t = threading.Timer(30.0, add_star)
+            t = threading.Timer(300.0, add_star)
             t.daemon = True
             t.start()
 
-    t = threading.Timer(30.0, add_star)
+    t = threading.Timer(300.0, add_star)
     t.daemon = True
     t.start()
 
@@ -129,13 +110,9 @@ def create_backup(destination):
                 log_message("Operation cancelled by the user.")
                 return
         
-        retention_number = retention_var.get()
         all_backups = sorted(Path(backup_root).iterdir(), key=os.path.getctime, reverse=True)
-        if len(all_backups) >= retention_number:
-            result = messagebox.askyesno(
-                "Delete Old Backups", 
-                f"There are {len(all_backups)} backups. Do you want to delete the oldest ones to retain only the last {retention_number}?"
-            )
+        if len(all_backups) >= 3:
+            result = messagebox.askyesno("Delete Old Backups", f"There are {len(all_backups)} backups. Do you want to delete the oldest ones to retain only the last 3?")
             if result:
                 delete_old_backups(backup_root)
             else:
@@ -231,22 +208,21 @@ def display_settings():
     settings = (
         f"Source Folders:\n" + "\n".join(source_paths) +
         f"\n\nDestination:\n{destination_var.get()}" +
-        f"\n\nBackup Name:\n{backup_name_var.get()}" +
-        f"\n\nMax Backups to Keep:\n{retention_var.get()}"
+        f"\n\nBackup Name:\n{backup_name_var.get()}"
     )
     log_message(settings)
 
 def clear_display():
-    global last_was_star
     display_text.config(state=tk.NORMAL)
     display_text.delete(1.0, tk.END)
     display_text.config(state=tk.DISABLED)
-    last_was_star = False
 
 root = tk.Tk()
 root.title("Backup Script")
 root.geometry("800x600")
 root.minsize(600, 400)
+
+# Configure root grid
 root.grid_rowconfigure(0, weight=1)
 root.grid_columnconfigure(0, weight=1)
 
@@ -259,7 +235,7 @@ button_frame = tk.Frame(main_frame)
 button_frame.grid(row=0, column=0, sticky="ew")
 start_button = tk.Button(button_frame, text="Start Backup", command=on_start, bg="lightgreen")
 start_button.pack(side=tk.LEFT, padx=5)
-settings_button = tk.Button(button_frame, text="Display Settings", command=display_settings, bg="lightgray")
+settings_button = tk.Button(button_frame, text="Display Settings", command=display_settings, bg="yellow")
 settings_button.pack(side=tk.LEFT, padx=5)
 clear_button = tk.Button(button_frame, text="Clear Display", command=clear_display)
 clear_button.pack(side=tk.LEFT, padx=5)
@@ -274,21 +250,16 @@ tk.Label(input_frame, text="Destination:").grid(row=0, column=0, sticky="w")
 destination_var = tk.StringVar(value=default_drive)
 destination_entry = tk.Entry(input_frame, textvariable=destination_var)
 destination_entry.grid(row=0, column=1, sticky="ew", padx=5)
-browse_button = tk.Button(input_frame, text="Browse", command=browse_destination, bg="yellow")
+browse_button = tk.Button(input_frame, text="Browse", command=browse_destination, bg="lightgreen")
 browse_button.grid(row=0, column=2, padx=5)
 
 tk.Label(input_frame, text="Backup Name:").grid(row=1, column=0, sticky="w")
 backup_name_var = tk.StringVar(value=default_backup_name)
 backup_name_entry = tk.Entry(input_frame, textvariable=backup_name_var)
-backup_name_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=5)
-
-tk.Label(input_frame, text="Max Number Of Backups:").grid(row=2, column=0, sticky="w")
-retention_var = tk.IntVar(value=DEFAULT_RETENTION)
-retention_menu = tk.OptionMenu(input_frame, retention_var, *RETENTION_OPTIONS)
-retention_menu.grid(row=2, column=1, sticky="w", padx=5, pady=5)
+backup_name_entry.grid(row=1, column=1, sticky="ew", padx=5, pady=10)
 
 source_buttons_frame = tk.Frame(input_frame)
-source_buttons_frame.grid(row=3, column=0, columnspan=3, sticky="ew", pady=5)
+source_buttons_frame.grid(row=2, column=0, columnspan=3, sticky="ew")
 replace_sources_button = tk.Button(source_buttons_frame, text="Replace Sources", command=replace_sources)
 replace_sources_button.pack(side=tk.LEFT, padx=5)
 add_to_sources_button = tk.Button(source_buttons_frame, text="Add to Sources", command=add_to_sources)

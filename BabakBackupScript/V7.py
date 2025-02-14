@@ -9,22 +9,19 @@ import stat
 
 # To convert to executable
 # pip install pyinstaller
-# then run:   pyinstaller --onefile --windowed DinaBackup.py
+# then run:   pyinstaller --onefile --windowed BabakBackup.py
 # When completed, the executable will be in the dist subfolder
 #
-# But first, need to update the source_paths and the USB drive.
-#
-# Configuration
-# Need to update the exact paths
 
 default_source_paths = [
-    
-    "C:/Users/dinab/Desktop",
-    "C:/Users/dunab/Documents",
-    "C:/Users/dunab/Downloads"
+    "C:/BKUP",
+    "C:/Download",
+    "C:/Users/Babak/Desktop",
+    "C:/Users/Babak/Documents",
+    "C:/Users/Babak/Zotero"
 ]
 default_drive = "D:/"
-default_backup_name = "Dina"  # Default backup name
+default_backup_name = "Babak"
 source_paths = default_source_paths.copy()
 last_was_star = False
 DEFAULT_RETENTION = 3
