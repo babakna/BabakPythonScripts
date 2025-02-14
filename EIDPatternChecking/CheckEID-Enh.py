@@ -1,7 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
 import re
-import pyperclip  # for clipboard operations / pip install pyperclip
+import pyperclip  # for clipboard operations / pip install pyperclip# To convert to executable
+# pip install pyinstaller
+# then run:   pyinstaller --onefile --windowed CheckEID-Enh.py
+# When completed, the executable will be in the dist subfolder
+#
+
 
 class PatternCheckerGUI:
     # Pattern definitions
