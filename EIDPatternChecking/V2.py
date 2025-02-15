@@ -1,10 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
 import re
-import pyperclip  # for clipboard operations / pip install pyperclip
+import pyperclip
+
+# To convert to executable
+# pip install pyinstaller
+# then run:   pyinstaller --onefile --windowed CheckEID-Enh.py
+# When completed, the executable will be in the dist subfolder
+#
 
 class PatternCheckerGUI:
-    # Pattern definitions
     PATTERN_DEFINITIONS = [
         {
             "name": "Samsung Pattern 1",
@@ -29,8 +34,8 @@ class PatternCheckerGUI:
         },
         {
             "name": "Pixel Pattern 1",
-            "first_8_digits": "89033023",  # Updated first 8 digits
-            "digits_14_18": "90091"        # Updated digits 14-18
+            "first_8_digits": "89033023",
+            "digits_14_18": "90091"
         },
         {
             "name": "Motorola Pattern 1",
@@ -46,8 +51,12 @@ class PatternCheckerGUI:
             "name": "REVVL Pattern 1",
             "first_8_digits": "89034011",
             "digits_14_18": "90000"
+        },
+        {
+            "name": "TCL Pattern 1",
+            "first_8_digits": "89049032",
+            "digits_13_18": "900913"
         }
-        # Add new patterns here
     ]
 
     def __init__(self, root):
@@ -55,37 +64,29 @@ class PatternCheckerGUI:
         self.root.title("32-Digit EID Pattern Checker")
         self.root.geometry("900x700")
 
-        # Create main frame
         main_frame = ttk.Frame(root, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Configure style for ttk buttons
         self.root.style = ttk.Style()
         self.root.style.configure('Bold.TButton', font=('Arial', 12, 'bold'))
 
-        # Create and configure input field
         self.input_var = tk.StringVar()
         self.input_var.trace('w', self.validate_input)
 
-        # Input label
         ttk.Label(main_frame, text="Enter 32-digit EID number:",
              font=('Arial', 12)).grid(row=0, column=0, columnspan=4, sticky=tk.W, pady=(0, 5))
 
-        # Input field
         self.input_field = ttk.Entry(main_frame, textvariable=self.input_var, width=50,
                                font=('Courier', 12))
         self.input_field.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(0, 5))
 
-        # Formatted display of input
         self.formatted_display = ttk.Label(main_frame, text="", font=('Courier', 10),
                                      wraplength=700)
         self.formatted_display.grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(0, 20))
 
-        # Button frame
         button_frame = ttk.Frame(main_frame)
         button_frame.grid(row=3, column=0, columnspan=4, pady=(0, 20))
 
-        # Buttons
         self.check_button = tk.Button(button_frame, text="Check Pattern",
                                  command=self.check_pattern, bg="green", fg="white",
                                  font=('Arial', 12, 'bold'), width=15)
@@ -111,42 +112,35 @@ class PatternCheckerGUI:
                                 font=('Arial', 12, 'bold'), width=15, justify='center')
         self.exit_button.grid(row=0, column=4, padx=5)
 
-        # Results display
         self.result_frame = ttk.LabelFrame(main_frame, text="Results", padding="10")
         self.result_frame.grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E))
 
-        # Results text
         self.result_text = tk.Text(self.result_frame, height=12, width=70,
                              wrap=tk.WORD, font=('Arial', 11))
         self.result_text.grid(row=0, column=0, sticky=(tk.W, tk.E))
         self.result_text.config(state=tk.DISABLED)
 
-        # Add scrollbar to results
+        self.result_text.tag_configure("success", foreground="green", font=('Arial', 11, 'bold'))
+        self.result_text.tag_configure("error", foreground="red", font=('Arial', 11, 'bold'))
+
         scrollbar = ttk.Scrollbar(self.result_frame, orient=tk.VERTICAL,
                             command=self.result_text.yview)
         scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
         self.result_text.config(yscrollcommand=scrollbar.set)
 
-        # Configure grid weights
         main_frame.columnconfigure(0, weight=1)
         self.root.columnconfigure(0, weight=1)
 
-        # Initial state
         self.update_result("Enter a 32-digit EID number and click 'Check Pattern'")
 
     def validate_input(self, *args):
         input_text = self.input_var.get()
-        # Remove any non-digit characters
         cleaned_input = ''.join(filter(str.isdigit, input_text))
 
-        # Limit to 32 digits
         if len(cleaned_input) > 32:
             cleaned_input = cleaned_input[:32]
 
-        # Update the input field with the cleaned input
         self.input_var.set(cleaned_input)
-
-        # Update the formatted display
         self.update_formatted_display()
 
     def update_formatted_display(self):
@@ -177,6 +171,9 @@ class PatternCheckerGUI:
                     match = False
             if "digits_14_18" in pattern:
                 if input_text[13:18] != pattern["digits_14_18"]:
+                    match = False
+            if "digits_13_18" in pattern:
+                if input_text[12:18] != pattern["digits_13_18"]:
                     match = False
             if match:
                 results.append(f"Match found for {pattern['name']}")
@@ -210,6 +207,8 @@ class PatternCheckerGUI:
                 info += f"Digits 14-17: {pattern['digits_14_17']}\n"
             if "digits_14_18" in pattern:
                 info += f"Digits 14-18: {pattern['digits_14_18']}\n"
+            if "digits_13_18" in pattern:
+                info += f"Digits 13-18: {pattern['digits_13_18']}\n"
             pattern_info.append(info)
         self.update_result("\n\n".join(pattern_info))
 
@@ -217,6 +216,12 @@ class PatternCheckerGUI:
         self.result_text.config(state=tk.NORMAL)
         self.result_text.delete("1.0", tk.END)
         self.result_text.insert(tk.END, message)
+        
+        if "Match found" in message:
+            self.result_text.tag_add("success", "1.0", "end")
+        elif message == "No matching patterns found.":
+            self.result_text.tag_add("error", "1.0", "end")
+        
         self.result_text.config(state=tk.DISABLED)
 
 def main():
