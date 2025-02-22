@@ -4,6 +4,9 @@ import numpy as np
 import threading
 import time
 
+# Functional Copy
+# pyinstaller --onefile --windowed CalculateOptimalAllocation.py
+
 class ETFOptimizerApp:
     def __init__(self, root):
         self.root = root
@@ -130,13 +133,13 @@ class ETFOptimizerApp:
         self.run_button = tk.Button(button_frame, text="Run Simulation", 
                                   command=self.start_simulation,
                                   width=15, height=2, 
-                                  bg="#e1e1e1", fg="black")
+                                  bg="green", fg="black")
         self.run_button.pack(side=tk.LEFT, padx=5)
         
         self.stop_button = tk.Button(button_frame, text="Stop", 
                                    command=self.stop_simulation,
                                    width=15, height=2, 
-                                   bg="#e1e1e1", fg="black",
+                                   bg="pink", fg="black",
                                    state=tk.DISABLED)
         self.stop_button.pack(side=tk.LEFT, padx=5)
         
@@ -149,7 +152,7 @@ class ETFOptimizerApp:
         self.exit_button = tk.Button(button_frame, text="Exit", 
                                    command=self.exit_application,
                                    width=15, height=2, 
-                                   bg="#e1e1e1", fg="black")
+                                   bg="red", fg="black")
         self.exit_button.pack(side=tk.RIGHT, padx=5)
     
     def on_canvas_configure(self, event):

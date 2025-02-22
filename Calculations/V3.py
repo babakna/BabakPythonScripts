@@ -8,13 +8,22 @@ class ETFOptimizerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("ETF Allocation Optimizer")
-        self.root.geometry("800x800")
+        self.root.geometry("900x950")  # Adjusted window size for better display
+        self.root.minsize(900, 900)   # Set minimum window size
         self.root.resizable(True, True)
         
         self.stop_flag = threading.Event()
         self.calculation_thread = None
         
-        # Use default styling to ensure button text is visible
+        # Default ETF entries
+        self.default_entries = [
+            ("VGT", "1000", "625"),
+            ("QQQM", "1000", "216"),
+            ("SCHD", "1000", "28"),
+            ("JEPI", "2500", "59"),
+            ("JEPQ", "2500", "57")
+        ]
+        
         self.create_widgets()
         
     def create_widgets(self):
@@ -31,19 +40,47 @@ class ETFOptimizerApp:
         self.budget_entry.pack(side=tk.LEFT, padx=5)
         self.budget_entry.insert(0, "8000")
         
+        # Allocation type frame
+        allocation_frame = ttk.Frame(main_frame, padding="5")
+        allocation_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(allocation_frame, text="Allocation Type:", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        self.allocation_type_var = tk.StringVar()
+        self.allocation_type = ttk.Combobox(allocation_frame, textvariable=self.allocation_type_var, 
+                                          values=["$", "%"], state="readonly", width=5)
+        self.allocation_type.pack(side=tk.LEFT, padx=5)
+        self.allocation_type.set("$")
+        
+        # Secondary objective frame
+        secondary_frame = ttk.Frame(main_frame, padding="5")
+        secondary_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(secondary_frame, text="Secondary Objective:", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=5)
+        self.secondary_obj_var = tk.StringVar()
+        self.secondary_obj = ttk.Combobox(secondary_frame, textvariable=self.secondary_obj_var, 
+                                        values=["Minimize Total Deviation", "Minimize Max Deviation"],
+                                        state="readonly", width=25)
+        self.secondary_obj.pack(side=tk.LEFT, padx=5)
+        self.secondary_obj.set("Minimize Total Deviation")
+        
         # Input section frame
         input_frame = ttk.LabelFrame(main_frame, text="ETF Entries", padding="10")
-        input_frame.pack(fill=tk.BOTH, pady=10)
+        input_frame.pack(fill=tk.BOTH, expand=True, pady=10)
         
         # Column headers
         header_frame = ttk.Frame(input_frame)
         header_frame.pack(fill=tk.X)
+
+        headers = ["#", "Symbol", "Target ($)", "Price ($)"]
+        widths = [3, 10, 12, 12]
         
-        headers = ["#", "Symbol", "Target ($)", "Price ($)", "Initial Shares Estimate"]
-        widths = [3, 10, 12, 12, 20]
-        
+        self.header_labels = []
         for i, header in enumerate(headers):
-            ttk.Label(header_frame, text=header, font=("Arial", 10, "bold"), width=widths[i]).grid(row=0, column=i, padx=5)
+            label = ttk.Label(header_frame, text=header, font=("Arial", 10, "bold"), width=widths[i])
+            label.grid(row=0, column=i, padx=5)
+            self.header_labels.append(label)
+        
+        self.allocation_type_var.trace_add("write", self.update_target_header)
         
         # Input rows frame with scrolling capability
         self.rows_canvas = tk.Canvas(input_frame)
@@ -63,9 +100,8 @@ class ETFOptimizerApp:
         self.symbol_entries = []
         self.target_entries = []
         self.price_entries = []
-        self.initial_shares_entries = []
         
-        for i in range(10):  # Create 10 rows
+        for i in range(10):
             ttk.Label(self.rows_frame, text=f"{i+1}", width=3).grid(row=i, column=0, padx=5, pady=2)
             
             symbol_entry = ttk.Entry(self.rows_frame, width=widths[1])
@@ -79,25 +115,9 @@ class ETFOptimizerApp:
             price_entry = ttk.Entry(self.rows_frame, width=widths[3])
             price_entry.grid(row=i, column=3, padx=5, pady=2)
             self.price_entries.append(price_entry)
-            
-            initial_shares_entry = ttk.Entry(self.rows_frame, width=widths[4])
-            initial_shares_entry.grid(row=i, column=4, padx=5, pady=2)
-            self.initial_shares_entries.append(initial_shares_entry)
         
-        # Add example data to first 5 rows
-        example_data = [
-            ("VGT", "1000", "625", ""),
-            ("QQQM", "1000", "216", ""),
-            ("SCHD", "1000", "28", ""),
-            ("JEPI", "2500", "59", ""),
-            ("JEPQ", "2500", "57", "")
-        ]
-        
-        for i, (symbol, target, price, shares) in enumerate(example_data):
-            self.symbol_entries[i].insert(0, symbol)
-            self.target_entries[i].insert(0, target)
-            self.price_entries[i].insert(0, price)
-            self.initial_shares_entries[i].insert(0, shares)
+        # Load default entries
+        self.reload_defaults()
         
         # Results display
         results_frame = ttk.LabelFrame(main_frame, text="Optimization Results", padding="10")
@@ -112,46 +132,64 @@ class ETFOptimizerApp:
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
         status_bar.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
         
-        # Buttons - Using tk.Button instead of ttk.Button for better visibility
+        # Buttons
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=10)
         
-        # Using standard tk.Button with explicit width for better visibility
         self.run_button = tk.Button(button_frame, text="Run Simulation", 
-                                   command=self.start_simulation,
-                                   width=15, height=2, 
-                                   bg="#e1e1e1", fg="black")
+                                  command=self.start_simulation,
+                                  width=15, height=2, 
+                                  bg="green", fg="black")
         self.run_button.pack(side=tk.LEFT, padx=5)
         
         self.stop_button = tk.Button(button_frame, text="Stop", 
-                                    command=self.stop_simulation,
-                                    width=15, height=2, 
-                                    bg="#e1e1e1", fg="black",
-                                    state=tk.DISABLED)
+                                   command=self.stop_simulation,
+                                   width=15, height=2, 
+                                   bg="pink", fg="black",
+                                   state=tk.DISABLED)
         self.stop_button.pack(side=tk.LEFT, padx=5)
         
         self.clear_button = tk.Button(button_frame, text="Clear Entries", 
-                                     command=self.clear_entries,
-                                     width=15, height=2, 
-                                     bg="#e1e1e1", fg="black")
-        self.clear_button.pack(side=tk.LEFT, padx=5)
-        
-        self.exit_button = tk.Button(button_frame, text="Exit", 
-                                    command=self.exit_application,
+                                    command=self.clear_entries,
                                     width=15, height=2, 
                                     bg="#e1e1e1", fg="black")
+        self.clear_button.pack(side=tk.LEFT, padx=5)
+        
+        self.clear_display_button = tk.Button(button_frame, text="Clear Display", 
+                                             command=self.clear_display,
+                                             width=15, height=2, 
+                                             bg="#e1e1e1", fg="black")
+        self.clear_display_button.pack(side=tk.LEFT, padx=5)
+        
+        self.reload_defaults_button = tk.Button(button_frame, text="Reload Defaults", 
+                                               command=self.reload_defaults,
+                                               width=15, height=2, 
+                                               bg="#e1e1e1", fg="black")
+        self.reload_defaults_button.pack(side=tk.LEFT, padx=5)
+        
+        self.copy_entries_button = tk.Button(button_frame, text="Copy Results", 
+                                            command=self.copy_entries,
+                                            width=15, height=2, 
+                                            bg="#e1e1e1", fg="black")
+        self.copy_entries_button.pack(side=tk.LEFT, padx=5)
+        
+        self.exit_button = tk.Button(button_frame, text="Exit", 
+                                   command=self.exit_application,
+                                   width=15, height=2, 
+                                   bg="red", fg="black")
         self.exit_button.pack(side=tk.RIGHT, padx=5)
     
+    def update_target_header(self, *args):
+        alloc_type = self.allocation_type_var.get()
+        self.header_labels[2].config(text=f"Target ({alloc_type})")
+    
     def on_canvas_configure(self, event):
-        """Adjust the canvas window width when canvas is resized"""
         self.rows_canvas.itemconfig(self.rows_canvas_window, width=event.width)
     
     def on_frame_configure(self, event):
-        """Update the scroll region when the rows frame changes size"""
         self.rows_canvas.configure(scrollregion=self.rows_canvas.bbox("all"))
     
     def validate_inputs(self):
-        """Validate inputs and return ETF data if valid"""
         try:
             budget = float(self.budget_entry.get())
             if budget <= 0:
@@ -160,46 +198,45 @@ class ETFOptimizerApp:
             messagebox.showerror("Input Error", f"Invalid budget: {str(e)}")
             return None
         
+        allocation_type = self.allocation_type_var.get()
+        if allocation_type not in ["$", "%"]:
+            messagebox.showerror("Input Error", "Invalid allocation type selected.")
+            return None
+        
         etfs = []
         targets = []
         prices = []
-        initial_shares = []
         
         for i in range(10):
             symbol = self.symbol_entries[i].get().strip()
             if not symbol:
-                continue  # Skip empty rows
+                continue
             
             try:
-                target = self.target_entries[i].get().strip()
-                if not target:
+                target_str = self.target_entries[i].get().strip()
+                if not target_str:
                     messagebox.showerror("Input Error", f"Missing target value for ETF #{i+1}")
                     return None
-                target = float(target)
-                if target <= 0:
-                    raise ValueError(f"Target for {symbol} must be positive")
+                target = float(target_str)
                 
-                price = self.price_entries[i].get().strip()
-                if not price:
+                if allocation_type == "%":
+                    if target < 0 or target > 100:
+                        raise ValueError(f"Percentage target for {symbol} must be between 0% and 100%")
+                else:
+                    if target <= 0:
+                        raise ValueError(f"Target for {symbol} must be positive")
+                
+                price_str = self.price_entries[i].get().strip()
+                if not price_str:
                     messagebox.showerror("Input Error", f"Missing price value for ETF #{i+1}")
                     return None
-                price = float(price)
+                price = float(price_str)
                 if price <= 0:
                     raise ValueError(f"Price for {symbol} must be positive")
-                
-                # Initial shares is optional
-                init_shares_str = self.initial_shares_entries[i].get().strip()
-                if init_shares_str:
-                    init_shares = int(float(init_shares_str))
-                    if init_shares < 0:
-                        raise ValueError(f"Initial shares for {symbol} cannot be negative")
-                else:
-                    init_shares = None
                 
                 etfs.append(symbol)
                 targets.append(target)
                 prices.append(price)
-                initial_shares.append(init_shares)
                 
             except ValueError as e:
                 messagebox.showerror("Input Error", f"Invalid value for ETF #{i+1} ({symbol}): {str(e)}")
@@ -209,158 +246,202 @@ class ETFOptimizerApp:
             messagebox.showerror("Input Error", "At least one ETF must be defined")
             return None
         
+        # Validate total allocations
+        if allocation_type == "$":
+            total_targets = sum(targets)
+            if not np.isclose(total_targets, budget, atol=0.01):
+                messagebox.showerror("Input Error", 
+                    f"Sum of target allocations (${total_targets:.2f}) does not match total budget (${budget:.2f}).")
+                return None
+        else:
+            total_percent = sum(targets)
+            if not np.isclose(total_percent, 100.0, atol=0.01):
+                messagebox.showerror("Input Error", 
+                    f"Sum of target percentages ({total_percent:.2f}%) does not equal 100%.")
+                return None
+        
+        # Get secondary objective
+        secondary_obj = self.secondary_obj_var.get()
+        if secondary_obj == "Minimize Total Deviation":
+            secondary_choice = 'total'
+        else:
+            secondary_choice = 'max'
+        
         return {
             "budget": budget,
             "etfs": etfs,
             "targets": targets,
             "prices": prices,
-            "initial_shares": initial_shares
+            "allocation_type": allocation_type,
+            "secondary_objective": secondary_choice
         }
     
     def optimize_allocation(self, data):
-        """Optimize ETF allocation based on input data"""
         self.status_var.set("Optimizing allocation...")
         self.root.update_idletasks()
         
         etfs = data["etfs"]
-        targets = data["targets"]
+        targets = data["targets"].copy()
         prices = data["prices"]
         total_budget = data["budget"]
-        initial_shares_input = data["initial_shares"]
+        allocation_type = data["allocation_type"]
+        secondary_obj = data["secondary_objective"]
         
-        # Check for stop request periodically
+        if allocation_type == "%":
+            # Convert percentages to dollar amounts
+            targets = [t * total_budget / 100 for t in targets]
+        
         if self.stop_flag.is_set():
             return "Optimization stopped by user."
         
-        # Function to calculate allocation metrics
         def calculate_allocation_metrics(shares):
             actual_investments = [shares[i] * prices[i] for i in range(len(etfs))]
             total_invested = sum(actual_investments)
             remainder = total_budget - total_invested
             
-            # Calculate target percentages and actual percentages
-            target_percentages = [t/sum(targets)*100 for t in targets]
-            actual_percentages = [a/total_invested*100 for a in actual_investments]
+            if total_invested == 0:
+                return {
+                    "actual_investments": actual_investments,
+                    "total_invested": 0,
+                    "remainder": remainder,
+                    "actual_percentages": [0]*len(etfs),
+                    "percentage_deviations": [100]*len(etfs),
+                    "total_deviation": 100*len(etfs),
+                    "max_deviation": 100
+                }
             
-            # Calculate deviation from target percentages
+            if allocation_type == "$":
+                target_percentages = [t/total_budget*100 for t in targets]
+            else:
+                target_percentages = data["targets"]
+            
+            actual_percentages = [a/total_invested*100 for a in actual_investments]
             percentage_deviations = [abs(actual_percentages[i] - target_percentages[i]) for i in range(len(etfs))]
             total_deviation = sum(percentage_deviations)
+            max_deviation = max(percentage_deviations)
             
-            return actual_investments, total_invested, remainder, actual_percentages, total_deviation
+            return {
+                "actual_investments": actual_investments,
+                "total_invested": total_invested,
+                "remainder": remainder,
+                "actual_percentages": actual_percentages,
+                "percentage_deviations": percentage_deviations,
+                "total_deviation": total_deviation,
+                "max_deviation": max_deviation
+            }
         
-        # Initial allocation - use provided initial shares or calculate
+        # Initial allocation
         initial_shares = []
-        for i in range(len(etfs)):
-            if initial_shares_input[i] is not None:
-                initial_shares.append(initial_shares_input[i])
-            else:
-                initial_shares.append(int(targets[i] / prices[i]))
+        for t, p in zip(targets, prices):
+            calculated_shares = max(int(t / p), 1)
+            initial_shares.append(calculated_shares)
         
-        # Calculate initial metrics
-        initial_metrics = calculate_allocation_metrics(initial_shares)
-        
-        # Optimization approach: Add shares one by one to minimize remainder
+        current_metrics = calculate_allocation_metrics(initial_shares)
         current_shares = initial_shares.copy()
-        current_metrics = initial_metrics
         
         iteration = 0
-        max_iterations = 1000  # Safety limit
+        max_iterations = 1000
         
-        # Keep adding shares until we can't add more without exceeding budget
         while iteration < max_iterations:
             iteration += 1
             
-            # Check for stop request
             if self.stop_flag.is_set():
                 return "Optimization stopped by user."
             
-            # Update status every few iterations
             if iteration % 10 == 0:
-                self.status_var.set(f"Optimizing allocation... Iteration {iteration}")
+                self.status_var.set(f"Optimizing... Iteration {iteration}")
                 self.root.update_idletasks()
-                time.sleep(0.01)  # Small delay to allow UI updates
+                time.sleep(0.01)
             
-            best_deviation = float('inf')
+            best_metric = float('inf')
             best_idx = -1
             best_metrics = None
             
-            # Try adding one share to each ETF and see which gives best result
             for i in range(len(etfs)):
                 test_shares = current_shares.copy()
                 test_shares[i] += 1
                 test_metrics = calculate_allocation_metrics(test_shares)
                 
-                # Check if this allocation is within budget and improves deviation
-                if test_metrics[2] >= 0 and test_metrics[4] < best_deviation:
-                    best_deviation = test_metrics[4]
+                if test_metrics['remainder'] < 0:
+                    continue
+                
+                if secondary_obj == 'total':
+                    current_metric = test_metrics['total_deviation']
+                else:
+                    current_metric = test_metrics['max_deviation']
+                
+                if current_metric < best_metric:
+                    best_metric = current_metric
                     best_idx = i
                     best_metrics = test_metrics
+                elif current_metric == best_metric:
+                    if secondary_obj == 'total':
+                        tie_metric = test_metrics['max_deviation']
+                        current_tie = best_metrics['max_deviation']
+                    else:
+                        tie_metric = test_metrics['total_deviation']
+                        current_tie = best_metrics['total_deviation']
+                    
+                    if tie_metric < current_tie:
+                        best_metric = current_metric
+                        best_idx = i
+                        best_metrics = test_metrics
             
-            # If no improvement found, break
             if best_idx == -1:
                 break
             
-            # Update current shares and metrics
             current_shares[best_idx] += 1
             current_metrics = best_metrics
         
         # Generate results
-        actual_investments = current_metrics[0]
-        total_invested = current_metrics[1]
-        remainder = current_metrics[2]
-        actual_percentages = current_metrics[3]
-        target_percentages = [t/sum(targets)*100 for t in targets]
+        if allocation_type == "$":
+            target_percentages = [t/total_budget*100 for t in targets]
+        else:
+            target_percentages = data["targets"]
         
         result = f"Optimization Results (Budget: ${total_budget:.2f})\n"
-        result += f"\n{'ETF':<6} {'Target($)':<10} {'Price($)':<10} {'Shares':<8} {'Actual($)':<12} {'Target%':<10} {'Actual%':<10}\n"
-        result += "-" * 70 + "\n"
+        result += f"Allocation Type: {allocation_type}\n"
+        result += f"Secondary Objective: {data['secondary_objective']}\n"
+        result += f"\n{'ETF':<6} {'Target':<10} {'Price($)':<10} {'Shares':<8} {'Actual($)':<12} {'Target%':<10} {'Actual%':<10}\n"
+        result += "-"*85 + "\n"
         
         for i in range(len(etfs)):
-            result += f"{etfs[i]:<6} ${targets[i]:<9.2f} ${prices[i]:<9.2f} {current_shares[i]:<8} ${actual_investments[i]:<11.2f} {target_percentages[i]:<9.2f}% {actual_percentages[i]:<9.2f}%\n"
+            result += (f"{etfs[i]:<6} {targets[i]:<10.2f} ${prices[i]:<9.2f} {current_shares[i]:<8} "
+                      f"${current_metrics['actual_investments'][i]:<11.2f} {target_percentages[i]:<9.2f}% "
+                      f"{current_metrics['actual_percentages'][i]:<9.2f}%\n")
         
-        result += "-" * 70 + "\n"
-        result += f"Total Invested: ${total_invested:.2f}\n"
-        result += f"Remainder: ${remainder:.2f}\n"
-        result += f"Total Percentage Deviation: {current_metrics[4]:.2f}%\n"
+        result += "-"*85 + "\n"
+        result += f"Total Invested: ${current_metrics['total_invested']:.2f}\n"
+        result += f"Remainder: ${current_metrics['remainder']:.2f}\n"
+        result += f"Total Deviation: {current_metrics['total_deviation']:.2f}%\n"
+        result += f"Max Deviation: {current_metrics['max_deviation']:.2f}%\n"
         
         return result
     
     def start_simulation(self):
-        """Start the optimization process in a separate thread"""
-        # Validate inputs first
         data = self.validate_inputs()
         if not data:
             return
         
-        # Reset stop flag
         self.stop_flag.clear()
-        
-        # Clear results and update UI
         self.results_text.delete(1.0, tk.END)
         self.results_text.insert(tk.END, "Optimization in progress...\n")
         self.run_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         self.status_var.set("Starting optimization...")
         
-        # Start optimization in a separate thread
         self.calculation_thread = threading.Thread(target=self.run_optimization, args=(data,))
         self.calculation_thread.daemon = True
         self.calculation_thread.start()
     
     def run_optimization(self, data):
-        """Run optimization in background thread"""
         try:
             result = self.optimize_allocation(data)
-            
-            # Update UI in the main thread
             self.root.after(0, self.update_results, result)
         except Exception as e:
-            # Handle unexpected errors
-            error_msg = f"Error during optimization: {str(e)}"
-            self.root.after(0, self.update_results, error_msg)
+            self.root.after(0, self.update_results, f"Error: {str(e)}")
     
     def update_results(self, result):
-        """Update results in the UI (called from main thread)"""
         self.results_text.delete(1.0, tk.END)
         self.results_text.insert(tk.END, result)
         self.run_button.config(state=tk.NORMAL)
@@ -368,29 +449,56 @@ class ETFOptimizerApp:
         self.status_var.set("Optimization complete")
     
     def stop_simulation(self):
-        """Stop the running simulation"""
         self.stop_flag.set()
         self.status_var.set("Stopping optimization...")
         self.stop_button.config(state=tk.DISABLED)
     
     def clear_entries(self):
-        """Clear all entry fields"""
         self.budget_entry.delete(0, tk.END)
         self.budget_entry.insert(0, "8000")
+        self.secondary_obj.set("Minimize Total Deviation")
+        self.allocation_type.set("$")
         
         for i in range(10):
             self.symbol_entries[i].delete(0, tk.END)
             self.target_entries[i].delete(0, tk.END)
             self.price_entries[i].delete(0, tk.END)
-            self.initial_shares_entries[i].delete(0, tk.END)
         
         self.results_text.delete(1.0, tk.END)
         self.status_var.set("Entries cleared")
     
+    def clear_display(self):
+        """Clear the results display."""
+        self.results_text.delete(1.0, tk.END)
+        self.status_var.set("Display cleared")
+    
+    def reload_defaults(self):
+        """Reload default ETF entries."""
+        for i in range(10):
+            self.symbol_entries[i].delete(0, tk.END)
+            self.target_entries[i].delete(0, tk.END)
+            self.price_entries[i].delete(0, tk.END)
+        
+        for i, (symbol, target, price) in enumerate(self.default_entries):
+            self.symbol_entries[i].insert(0, symbol)
+            self.target_entries[i].insert(0, target)
+            self.price_entries[i].insert(0, price)
+        
+        if hasattr(self, 'status_var'):  # Ensure status_var exists before updating
+            self.status_var.set("Defaults reloaded")
+    
+    def copy_entries(self):
+        """Copy the results to the clipboard."""
+        results = self.results_text.get(1.0, tk.END)
+        if results.strip():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(results)
+            self.status_var.set("Results copied to clipboard")
+        else:
+            self.status_var.set("No results to copy")
+    
     def exit_application(self):
-        """Exit the application gracefully"""
         if self.calculation_thread and self.calculation_thread.is_alive():
-            # If calculation is running, ask for confirmation
             if messagebox.askyesno("Confirm Exit", "Calculation is still running. Are you sure you want to exit?"):
                 self.stop_flag.set()
                 self.root.destroy()
@@ -401,7 +509,7 @@ if __name__ == "__main__":
     try:
         root = tk.Tk()
         app = ETFOptimizerApp(root)
-        root.protocol("WM_DELETE_WINDOW", app.exit_application)  # Handle window close
+        root.protocol("WM_DELETE_WINDOW", app.exit_application)
         root.mainloop()
     except Exception as e:
-        messagebox.showerror("Critical Error", f"An unexpected error occurred: {str(e)}")
+        messagebox.showerror("Critical Error", f"Unexpected error: {str(e)}")
