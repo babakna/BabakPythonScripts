@@ -4,6 +4,9 @@ import numpy as np
 import threading
 import time
 
+# Enhanced
+# pyinstaller --onefile --windowed CalculateOptimalAllocation.py
+
 class ETFOptimizerApp:
     def __init__(self, root):
         self.root = root
